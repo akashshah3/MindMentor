@@ -1,0 +1,290 @@
+"""
+Database operations for MindMentor
+Handles all database interactions
+"""
+
+import sqlite3
+from typing import Optional, Dict, List
+from datetime import datetime
+from pathlib import Path
+from contextlib import contextmanager
+
+
+class Database:
+    """Database connection and operations manager"""
+    
+    def __init__(self, db_path: Optional[Path] = None):
+        """
+        Initialize database connection
+        
+        Args:
+            db_path: Path to SQLite database file
+        """
+        if db_path is None:
+            # Default to project root
+            project_root = Path(__file__).parent.parent.parent
+            db_path = project_root / "mindmentor.db"
+        
+        self.db_path = db_path
+    
+    @contextmanager
+    def get_connection(self):
+        """Context manager for database connections"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+        try:
+            yield conn
+        finally:
+            conn.close()
+    
+    # ===== USER OPERATIONS =====
+    
+    def create_user(self, username: str, password_hash: str, name: str, 
+                   email: Optional[str] = None, exam_target: Optional[str] = None,
+                   daily_hours: Optional[float] = None) -> Optional[int]:
+        """
+        Create a new user
+        
+        Args:
+            username: Unique username
+            password_hash: Hashed password
+            name: User's full name
+            email: Optional email address
+            exam_target: JEE_MAIN, JEE_ADVANCED, or BOTH
+            daily_hours: Available study hours per day
+            
+        Returns:
+            User ID if successful, None if username exists
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            try:
+                cursor.execute("""
+                    INSERT INTO users (username, password_hash, name, email, 
+                                     exam_target, daily_hours, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (username, password_hash, name, email, exam_target, 
+                     daily_hours, datetime.now()))
+                
+                conn.commit()
+                return cursor.lastrowid
+            
+            except sqlite3.IntegrityError:
+                # Username already exists
+                return None
+    
+    def get_user_by_username(self, username: str) -> Optional[Dict]:
+        """
+        Get user by username
+        
+        Args:
+            username: Username to search for
+            
+        Returns:
+            User data as dictionary, or None if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, username, password_hash, name, email, 
+                       exam_target, daily_hours, created_at, last_login, is_active
+                FROM users
+                WHERE username = ? AND is_active = 1
+            """, (username,))
+            
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    
+    def get_user_by_id(self, user_id: int) -> Optional[Dict]:
+        """
+        Get user by ID
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            User data as dictionary, or None if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, username, password_hash, name, email,
+                       exam_target, daily_hours, created_at, last_login, is_active
+                FROM users
+                WHERE id = ? AND is_active = 1
+            """, (user_id,))
+            
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    
+    def update_last_login(self, user_id: int):
+        """
+        Update user's last login timestamp
+        
+        Args:
+            user_id: User ID
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE users
+                SET last_login = ?
+                WHERE id = ?
+            """, (datetime.now(), user_id))
+            conn.commit()
+    
+    def update_user_profile(self, user_id: int, **kwargs):
+        """
+        Update user profile fields
+        
+        Args:
+            user_id: User ID
+            **kwargs: Fields to update (name, email, exam_target, daily_hours)
+        """
+        allowed_fields = {'name', 'email', 'exam_target', 'daily_hours'}
+        updates = {k: v for k, v in kwargs.items() if k in allowed_fields}
+        
+        if not updates:
+            return
+        
+        set_clause = ', '.join(f"{k} = ?" for k in updates.keys())
+        values = list(updates.values()) + [user_id]
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE users
+                SET {set_clause}
+                WHERE id = ?
+            """, values)
+            conn.commit()
+    
+    # ===== TOPIC OPERATIONS =====
+    
+    def get_all_topics(self, subject: Optional[str] = None) -> List[Dict]:
+        """
+        Get all topics, optionally filtered by subject
+        
+        Args:
+            subject: Optional filter by subject (Physics, Chemistry, Mathematics)
+            
+        Returns:
+            List of topic dictionaries
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            if subject:
+                cursor.execute("""
+                    SELECT id, subject, chapter_name, topic_name, 
+                           exam_weight, difficulty_level
+                    FROM topics
+                    WHERE subject = ?
+                    ORDER BY subject, chapter_name, topic_name
+                """, (subject,))
+            else:
+                cursor.execute("""
+                    SELECT id, subject, chapter_name, topic_name,
+                           exam_weight, difficulty_level
+                    FROM topics
+                    ORDER BY subject, chapter_name, topic_name
+                """)
+            
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def get_topic_by_id(self, topic_id: int) -> Optional[Dict]:
+        """
+        Get topic by ID
+        
+        Args:
+            topic_id: Topic ID
+            
+        Returns:
+            Topic data as dictionary, or None if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, subject, chapter_name, topic_name,
+                       exam_weight, difficulty_level, prerequisites
+                FROM topics
+                WHERE id = ?
+            """, (topic_id,))
+            
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    
+    def get_topics_by_chapter(self, subject: str, chapter_name: str) -> List[Dict]:
+        """
+        Get all topics in a chapter
+        
+        Args:
+            subject: Subject name
+            chapter_name: Chapter name
+            
+        Returns:
+            List of topic dictionaries
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, subject, chapter_name, topic_name,
+                       exam_weight, difficulty_level
+                FROM topics
+                WHERE subject = ? AND chapter_name = ?
+                ORDER BY topic_name
+            """, (subject, chapter_name))
+            
+            return [dict(row) for row in cursor.fetchall()]
+    
+    # ===== STUDENT PROFILE OPERATIONS =====
+    
+    def get_student_profile(self, user_id: int, topic_id: int) -> Optional[Dict]:
+        """
+        Get student's learning profile for a topic
+        
+        Args:
+            user_id: User ID
+            topic_id: Topic ID
+            
+        Returns:
+            Profile data as dictionary, or None if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, user_id, topic_id, mastery_score, last_attempt_date,
+                       total_attempts, correct_attempts, accuracy, avg_time_seconds,
+                       revision_count, next_review_date, weak_concepts, strength_level
+                FROM student_profiles
+                WHERE user_id = ? AND topic_id = ?
+            """, (user_id, topic_id))
+            
+            row = cursor.fetchone()
+            return dict(row) if row else None
+    
+    def get_all_student_profiles(self, user_id: int) -> List[Dict]:
+        """
+        Get all learning profiles for a user
+        
+        Args:
+            user_id: User ID
+            
+        Returns:
+            List of profile dictionaries
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT sp.*, t.subject, t.chapter_name, t.topic_name
+                FROM student_profiles sp
+                JOIN topics t ON sp.topic_id = t.id
+                WHERE sp.user_id = ?
+                ORDER BY sp.mastery_score ASC, t.subject, t.chapter_name
+            """, (user_id,))
+            
+            return [dict(row) for row in cursor.fetchall()]
+
+
+# Singleton instance
+db = Database()
