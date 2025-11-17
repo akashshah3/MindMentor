@@ -6,6 +6,7 @@ Includes topics from Physics, Chemistry, and Mathematics
 import sqlite3
 from pathlib import Path
 import json
+import sys
 
 
 def get_db_path():
@@ -99,6 +100,12 @@ def seed_jee_topics(db_path=None):
     cursor = conn.cursor()
     
     try:
+        # Check if already seeded
+        cursor.execute("SELECT COUNT(*) FROM topics")
+        count = cursor.fetchone()[0]
+        if count > 0:
+            return True  # Already seeded
+        
         inserted_count = 0
         for topic_data in JEE_TOPICS:
             cursor.execute("""
@@ -134,12 +141,54 @@ def seed_jee_topics(db_path=None):
         return True
     
     except sqlite3.Error as e:
-        print(f"❌ Error seeding topics: {e}")
+        print(f"❌ Error seeding topics: {e}", file=sys.stderr)
         conn.rollback()
         return False
     
     finally:
         conn.close()
+
+
+def seed_jee_topics_silent(db_path=None):
+    """
+    Seed JEE topics silently (for production/Streamlit Cloud)
+    Returns True if successful or already seeded
+    """
+    if db_path is None:
+        db_path = get_db_path()
+    
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        # Check if already seeded
+        cursor.execute("SELECT COUNT(*) FROM topics")
+        count = cursor.fetchone()[0]
+        if count > 0:
+            conn.close()
+            return True  # Already seeded
+        
+        # Insert topics
+        for topic_data in JEE_TOPICS:
+            cursor.execute("""
+                INSERT OR IGNORE INTO topics 
+                (subject, chapter_name, topic_name, exam_weight, difficulty_level)
+                VALUES (?, ?, ?, ?, ?)
+            """, (
+                topic_data["subject"],
+                topic_data["chapter"],
+                topic_data["topic"],
+                topic_data["weight"],
+                topic_data["difficulty"]
+            ))
+        
+        conn.commit()
+        conn.close()
+        return True
+        
+    except sqlite3.Error as e:
+        print(f"❌ Error seeding topics: {e}", file=sys.stderr)
+        return False
 
 
 if __name__ == "__main__":

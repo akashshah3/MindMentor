@@ -6,6 +6,7 @@ Creates the SQLite database and applies schema
 import sqlite3
 import os
 from pathlib import Path
+import sys
 
 
 def get_db_path():
@@ -33,16 +34,23 @@ def init_database(db_path=None, schema_path=None):
     if schema_path is None:
         schema_path = get_schema_path()
     
-    # Check if database already exists
+    # Check if database already exists and has tables
     db_exists = os.path.exists(db_path)
     
     if db_exists:
-        response = input(f"Database already exists at {db_path}. Recreate? (y/N): ")
-        if response.lower() != 'y':
-            print("Database initialization cancelled.")
-            return False
-        os.remove(db_path)
-        print(f"Deleted existing database at {db_path}")
+        # Check if it has tables (to see if it's already initialized)
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = cursor.fetchall()
+            conn.close()
+            
+            if len(tables) > 0:
+                # Database already initialized
+                return True
+        except:
+            pass
     
     # Read schema SQL
     with open(schema_path, 'r') as f:
@@ -67,11 +75,59 @@ def init_database(db_path=None, schema_path=None):
         return True
     
     except sqlite3.Error as e:
-        print(f"❌ Error creating database: {e}")
+        print(f"❌ Error creating database: {e}", file=sys.stderr)
         return False
     
     finally:
         conn.close()
+
+
+def init_database_silent(db_path=None, schema_path=None):
+    """
+    Initialize the database silently (for production/Streamlit Cloud)
+    Returns True if successful or already initialized
+    """
+    if db_path is None:
+        db_path = get_db_path()
+    
+    if schema_path is None:
+        schema_path = get_schema_path()
+    
+    # Check if database already exists and has tables
+    db_exists = os.path.exists(db_path)
+    
+    if db_exists:
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = cursor.fetchall()
+            conn.close()
+            
+            if len(tables) > 0:
+                return True  # Already initialized
+        except:
+            pass
+    
+    # Read schema SQL
+    try:
+        with open(schema_path, 'r') as f:
+            schema_sql = f.read()
+    except FileNotFoundError:
+        print(f"❌ Schema file not found at {schema_path}", file=sys.stderr)
+        return False
+    
+    # Create database and apply schema
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.executescript(schema_sql)
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.Error as e:
+        print(f"❌ Error creating database: {e}", file=sys.stderr)
+        return False
 
 
 if __name__ == "__main__":

@@ -12,6 +12,18 @@ from src.pages.learn import main as show_learn_page
 from src.pages.quiz import main as show_quiz_page
 from src.pages.schedule import show_schedule_page
 
+# Initialize database on startup
+from src.data.init_db import init_database_silent
+from src.data.seed_jee_data import seed_jee_topics_silent
+
+# Ensure database is ready
+try:
+    if init_database_silent():
+        seed_jee_topics_silent()
+except Exception as e:
+    st.error(f"Database initialization error: {e}")
+    st.stop()
+
 
 # Page configuration
 st.set_page_config(
