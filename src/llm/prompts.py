@@ -85,7 +85,13 @@ For DESCRIPTIVE questions, provide:
 - Sample answer
 - Marking scheme
 
-Format as JSON:
+IMPORTANT: 
+- For mathematical expressions, use simple text notation or Unicode symbols instead of LaTeX
+- Avoid backslashes in text (they break JSON parsing)
+- Use ^ for superscripts (e.g., x^2 instead of x²)
+- Use / for fractions (e.g., 1/2 instead of ½)
+
+Format as valid JSON (ensure all strings are properly escaped):
 {{
     "questions": [
         {{

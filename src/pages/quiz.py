@@ -1,0 +1,441 @@
+"""
+Quiz page - Interactive quiz interface with timer and grading
+"""
+
+import streamlit as st
+from datetime import datetime, timedelta
+from typing import Optional, Dict, List
+import sys
+import os
+import time
+
+# Add src to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+from src.data.db import Database
+from src.core.auth import SessionManager
+from src.core.quiz_generator import QuizGenerator
+from src.core.grading import GradingEngine
+
+
+def init_quiz_state():
+    """Initialize quiz session state variables"""
+    if 'quiz_mode' not in st.session_state:
+        st.session_state.quiz_mode = 'select'  # 'select', 'taking', 'results'
+    if 'current_quiz' not in st.session_state:
+        st.session_state.current_quiz = None
+    if 'quiz_start_time' not in st.session_state:
+        st.session_state.quiz_start_time = None
+    if 'student_answers' not in st.session_state:
+        st.session_state.student_answers = {}
+    if 'quiz_results' not in st.session_state:
+        st.session_state.quiz_results = None
+
+
+def render_topic_selection(db: Database, user_id: int):
+    """Render topic selection for quiz generation"""
+    st.title("✍️ Practice Quiz")
+    st.markdown("Select topics and generate a personalized quiz")
+    
+    st.divider()
+    
+    # Get all topics
+    topics = db.get_all_topics()
+    topics_by_subject = {}
+    for topic in topics:
+        subject = topic['subject']
+        if subject not in topics_by_subject:
+            topics_by_subject[subject] = []
+        topics_by_subject[subject].append(topic)
+    
+    # Quiz configuration
+    col1, col2 = st.columns([2, 1])
+    
+    with col1:
+        st.subheader("Select Topics")
+        
+        selected_topics = []
+        
+        for subject, topic_list in topics_by_subject.items():
+            with st.expander(f"📚 {subject}", expanded=False):
+                for topic in topic_list:
+                    if st.checkbox(
+                        f"{topic['topic_name']} ({topic['chapter_name']})",
+                        key=f"topic_{topic['id']}"
+                    ):
+                        selected_topics.append(topic['id'])
+    
+    with col2:
+        st.subheader("Quiz Settings")
+        
+        question_count = st.slider(
+            "Number of Questions",
+            min_value=5,
+            max_value=30,
+            value=10,
+            step=5
+        )
+        
+        difficulty = st.selectbox(
+            "Difficulty Level",
+            options=['Easy', 'Medium', 'Hard', 'Adaptive'],
+            index=1
+        )
+        
+        st.markdown("**Question Types:**")
+        include_mcq = st.checkbox("MCQ", value=True)
+        include_numeric = st.checkbox("Numeric", value=True)
+        include_descriptive = st.checkbox("Descriptive", value=False)
+        
+        st.divider()
+        
+        fresh_questions = st.checkbox(
+            "🔄 Generate Fresh Questions",
+            value=False,
+            help="Bypass cache to generate new questions (uses more API credits)"
+        )
+        
+        # Generate quiz button
+        if st.button("🎯 Generate Quiz", type="primary", use_container_width=True):
+            if not selected_topics:
+                st.error("Please select at least one topic!")
+            else:
+                generate_quiz(
+                    db, user_id, selected_topics, question_count,
+                    difficulty, include_mcq, include_numeric, include_descriptive,
+                    fresh_questions
+                )
+
+
+def generate_quiz(
+    db: Database,
+    user_id: int,
+    topic_ids: List[int],
+    question_count: int,
+    difficulty: str,
+    include_mcq: bool,
+    include_numeric: bool,
+    include_descriptive: bool,
+    force_refresh: bool = False
+):
+    """Generate a new quiz"""
+    
+    # Build question types list
+    question_types = []
+    if include_mcq:
+        question_types.extend(['MCQ'] * 3)
+    if include_numeric:
+        question_types.extend(['Numeric'] * 2)
+    if include_descriptive:
+        question_types.append('Descriptive')
+    
+    if not question_types:
+        st.error("Please select at least one question type!")
+        return
+    
+    with st.spinner("🤖 Generating your personalized quiz..."):
+        try:
+            generator = QuizGenerator(db)
+            
+            # Handle adaptive difficulty
+            if difficulty == 'Adaptive':
+                # Use first topic for adaptive difficulty
+                difficulty = generator.get_adaptive_difficulty(user_id, topic_ids[0])
+                st.info(f"📊 Adaptive difficulty selected: {difficulty}")
+            
+            # Generate quiz
+            quiz_data = generator.generate_quiz(
+                user_id=user_id,
+                topic_ids=topic_ids,
+                question_count=question_count,
+                difficulty=difficulty,
+                question_types=question_types,
+                force_refresh=force_refresh
+            )
+            
+            # Save to database
+            quiz_id = generator.save_quiz(quiz_data)
+            quiz_data['id'] = quiz_id
+            
+            # Load into session
+            st.session_state.current_quiz = quiz_data
+            st.session_state.quiz_mode = 'taking'
+            st.session_state.quiz_start_time = datetime.now()
+            st.session_state.student_answers = {}
+            
+            cache_msg = " (using cached questions)" if not force_refresh else " (fresh questions generated)"
+            st.success(f"✅ Quiz generated! {len(quiz_data['questions'])} questions ready.{cache_msg}")
+            time.sleep(1)
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Error generating quiz: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
+
+
+def render_quiz_taking(db: Database, user_id: int):
+    """Render quiz taking interface"""
+    quiz = st.session_state.current_quiz
+    
+    # Header with timer
+    col1, col2, col3 = st.columns([2, 2, 1])
+    
+    with col1:
+        st.title("✍️ Quiz in Progress")
+    
+    with col2:
+        # Timer
+        elapsed = datetime.now() - st.session_state.quiz_start_time
+        time_limit = timedelta(minutes=quiz['time_limit_minutes'])
+        remaining = time_limit - elapsed
+        
+        if remaining.total_seconds() > 0:
+            mins = int(remaining.total_seconds() // 60)
+            secs = int(remaining.total_seconds() % 60)
+            st.metric("⏱️ Time Remaining", f"{mins}:{secs:02d}")
+        else:
+            st.error("⏰ Time's up!")
+    
+    with col3:
+        if st.button("⬅️ Quit"):
+            st.session_state.quiz_mode = 'select'
+            st.session_state.current_quiz = None
+            st.rerun()
+    
+    st.divider()
+    
+    # Display questions
+    questions = quiz['questions']
+    
+    for idx, question in enumerate(questions, 1):
+        render_question(question, idx)
+        st.divider()
+    
+    # Submit button
+    col1, col2, col3 = st.columns([2, 1, 2])
+    with col2:
+        if st.button("📝 Submit Quiz", type="primary", use_container_width=True):
+            submit_quiz(db)
+
+
+def render_question(question: Dict, question_number: int):
+    """Render a single question"""
+    question_id = question.get('id', question_number)
+    
+    st.markdown(f"### Question {question_number}")
+    st.markdown(f"**Type:** {question['question_type']} | **Marks:** {question.get('marks', 4)}")
+    
+    # Question text
+    st.markdown(question.get('question', question.get('question_text', '')))
+    
+    # Answer input based on type
+    q_type = question['question_type']
+    
+    if q_type == 'MCQ':
+        options = question.get('options', [])
+        if isinstance(options, list) and options:
+            # Extract option labels (A, B, C, D)
+            option_labels = [opt.split('.')[0].strip() if '.' in opt else chr(65+i) 
+                           for i, opt in enumerate(options)]
+            
+            answer = st.radio(
+                "Select your answer:",
+                options=option_labels,
+                format_func=lambda x: f"{x}. {options[option_labels.index(x)].split('.', 1)[1].strip() if '.' in options[option_labels.index(x)] else options[option_labels.index(x)]}",
+                key=f"q_{question_id}",
+                index=None
+            )
+            
+            if answer:
+                st.session_state.student_answers[question_id] = answer
+        else:
+            st.warning("Options not properly formatted")
+    
+    elif q_type == 'Numeric':
+        answer = st.number_input(
+            "Enter your numeric answer:",
+            value=None,
+            format="%f",
+            key=f"q_{question_id}"
+        )
+        
+        if answer is not None:
+            st.session_state.student_answers[question_id] = str(answer)
+    
+    elif q_type == 'Descriptive':
+        answer = st.text_area(
+            "Write your answer:",
+            height=150,
+            key=f"q_{question_id}",
+            placeholder="Provide a detailed explanation..."
+        )
+        
+        if answer:
+            st.session_state.student_answers[question_id] = answer
+
+
+def submit_quiz(db: Database):
+    """Submit quiz and calculate results"""
+    quiz = st.session_state.current_quiz
+    
+    # Collect answers from session state widgets
+    answers = {}
+    for question in quiz['questions']:
+        question_id = question.get('id')
+        widget_key = f"q_{question_id}"
+        
+        # Get answer from widget in session state
+        if widget_key in st.session_state:
+            answer = st.session_state[widget_key]
+            if answer:  # Only include if not empty/None
+                answers[question_id] = answer
+    
+    # Check if all questions answered
+    unanswered = len(quiz['questions']) - len(answers)
+    if unanswered > 0:
+        st.warning(f"⚠️ {unanswered} question(s) unanswered. Submit anyway?")
+    
+    with st.spinner("📊 Grading your quiz..."):
+        try:
+            # Debug: Check what answers we have
+            st.info(f"DEBUG: Collected {len(answers)} answers")
+            st.info(f"DEBUG: Answer keys: {list(answers.keys())}")
+            st.info(f"DEBUG: Question IDs in quiz: {[q.get('id') for q in quiz['questions']]}")
+            
+            # Calculate time taken
+            time_taken = (datetime.now() - st.session_state.quiz_start_time).total_seconds() / 60
+            
+            # Grade quiz
+            grader = GradingEngine(db)
+            results = grader.grade_quiz(
+                quiz_id=quiz['id'],
+                answers=answers,
+                time_taken_minutes=int(time_taken)
+            )
+            
+            st.session_state.quiz_results = results
+            st.session_state.student_answers = answers  # Store for results display
+            st.session_state.quiz_mode = 'results'
+            
+            st.success("✅ Quiz graded successfully!")
+            time.sleep(1)
+            st.rerun()
+            
+        except Exception as e:
+            st.error(f"Error grading quiz: {str(e)}")
+            import traceback
+            st.code(traceback.format_exc())
+
+
+def render_quiz_results(db: Database):
+    """Display quiz results"""
+    results = st.session_state.quiz_results
+    quiz = st.session_state.current_quiz
+    
+    st.title("📊 Quiz Results")
+    
+    # Overall score
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Score", f"{results['total_score']}/{results['max_score']}")
+    
+    with col2:
+        st.metric("Percentage", f"{results['percentage']}%")
+    
+    with col3:
+        st.metric("Correct", f"{results['correct_count']}/{results['total_questions']}")
+    
+    with col4:
+        st.metric("Time Taken", f"{results['time_taken_minutes']} min")
+    
+    # Performance indicator
+    if results['percentage'] >= 80:
+        st.success("🎉 Excellent! You've mastered this topic!")
+    elif results['percentage'] >= 60:
+        st.info("👍 Good job! Keep practicing to improve.")
+    else:
+        st.warning("📚 Review the concepts and try again.")
+    
+    st.divider()
+    
+    # Question-wise results
+    st.subheader("Question-wise Breakdown")
+    
+    for idx, (question, result) in enumerate(zip(quiz['questions'], results['results']), 1):
+        with st.expander(
+            f"Question {idx}: {'✅' if result['is_correct'] else '❌'} "
+            f"({result['score']}/{result['max_score']} marks)",
+            expanded=not result['is_correct']
+        ):
+            # Question
+            st.markdown(f"**Question:** {question.get('question', question.get('question_text', ''))}")
+            
+            # Student answer
+            q_id = question.get('id', idx)
+            student_ans = st.session_state.student_answers.get(q_id, 'Not answered')
+            st.markdown(f"**Your Answer:** {student_ans}")
+            
+            # Feedback
+            st.markdown(f"**Feedback:**")
+            st.markdown(result['feedback'])
+            
+            # Show solution for incorrect answers
+            if not result['is_correct'] and 'correct_answer' in result:
+                st.markdown(f"**Correct Answer:**")
+                if question['question_type'] == 'Descriptive':
+                    st.markdown(question.get('solution', result['correct_answer']))
+                else:
+                    st.info(result['correct_answer'])
+    
+    st.divider()
+    
+    # Action buttons
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if st.button("🔄 Try Another Quiz", use_container_width=True):
+            st.session_state.quiz_mode = 'select'
+            st.session_state.current_quiz = None
+            st.session_state.quiz_results = None
+            st.rerun()
+    
+    with col2:
+        if st.button("📚 Review Topics", use_container_width=True):
+            # Navigate to learn page
+            st.session_state.current_page = 'learn'
+            st.rerun()
+    
+    with col3:
+        if st.button("📊 View Dashboard", use_container_width=True):
+            st.session_state.current_page = 'dashboard'
+            st.rerun()
+
+
+def main():
+    """Main quiz page"""
+    # Check authentication
+    if not SessionManager.is_authenticated(st.session_state):
+        st.warning("Please login to access quizzes")
+        st.stop()
+    
+    user_id = st.session_state.user_id
+    
+    # Initialize state
+    init_quiz_state()
+    
+    # Get database connection
+    db = Database()
+    
+    # Render appropriate interface
+    if st.session_state.quiz_mode == 'results':
+        render_quiz_results(db)
+    elif st.session_state.quiz_mode == 'taking' and st.session_state.current_quiz:
+        render_quiz_taking(db, user_id)
+    else:
+        render_topic_selection(db, user_id)
+
+
+if __name__ == "__main__":
+    main()

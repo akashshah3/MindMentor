@@ -9,6 +9,7 @@ from src.pages.login import show_login_page
 from src.pages.register import show_registration_page
 from src.pages.dashboard import show_dashboard
 from src.pages.learn import main as show_learn_page
+from src.pages.quiz import main as show_quiz_page
 
 
 # Page configuration
@@ -68,8 +69,10 @@ def show_sidebar():
                 st.session_state.current_page = "learn"
                 st.rerun()
             
-            st.button("✍️ Practice", use_container_width=True, disabled=True,
-                     help="Coming soon!")
+            if st.button("✍️ Practice", use_container_width=True):
+                st.session_state.current_page = "quiz"
+                st.rerun()
+            
             st.button("📅 Schedule", use_container_width=True, disabled=True,
                      help="Coming soon!")
             st.button("📈 Analytics", use_container_width=True, disabled=True,
@@ -110,6 +113,8 @@ def main():
         
         if current_page == 'learn':
             show_learn_page()
+        elif current_page == 'quiz':
+            show_quiz_page()
         else:
             show_dashboard()
     
