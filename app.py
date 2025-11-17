@@ -8,6 +8,7 @@ from src.core.auth import SessionManager
 from src.pages.login import show_login_page
 from src.pages.register import show_registration_page
 from src.pages.dashboard import show_dashboard
+from src.pages.learn import main as show_learn_page
 
 
 # Page configuration
@@ -41,6 +42,9 @@ def init_session_state():
     
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
+    
+    if 'current_page' not in st.session_state:
+        st.session_state.current_page = 'dashboard'
 
 
 def show_sidebar():
@@ -60,8 +64,10 @@ def show_sidebar():
                 st.session_state.current_page = "dashboard"
                 st.rerun()
             
-            st.button("📖 Learn", use_container_width=True, disabled=True, 
-                     help="Coming soon!")
+            if st.button("📖 Learn", use_container_width=True):
+                st.session_state.current_page = "learn"
+                st.rerun()
+            
             st.button("✍️ Practice", use_container_width=True, disabled=True,
                      help="Coming soon!")
             st.button("📅 Schedule", use_container_width=True, disabled=True,
@@ -99,8 +105,13 @@ def main():
     
     # Routing logic
     if SessionManager.is_authenticated(st.session_state):
-        # User is logged in - show dashboard
-        show_dashboard()
+        # User is logged in - route to appropriate page
+        current_page = st.session_state.get('current_page', 'dashboard')
+        
+        if current_page == 'learn':
+            show_learn_page()
+        else:
+            show_dashboard()
     
     else:
         # User is not logged in - show login or registration

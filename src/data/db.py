@@ -284,6 +284,144 @@ class Database:
             """, (user_id,))
             
             return [dict(row) for row in cursor.fetchall()]
+    
+    # ===== LLM CACHE OPERATIONS =====
+    
+    def get_from_cache(self, cache_key: str) -> Optional[Dict]:
+        """
+        Get cached LLM response
+        
+        Args:
+            cache_key: Unique cache key
+            
+        Returns:
+            Cache entry as dictionary, or None if not found
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, cache_key, model_used, response_content, 
+                       created_at, last_accessed, access_count, content_type
+                FROM llm_cache
+                WHERE cache_key = ?
+            """, (cache_key,))
+            
+            row = cursor.fetchone()
+            
+            if row:
+                # Update access tracking
+                cache_id = row['id']
+                cursor.execute("""
+                    UPDATE llm_cache
+                    SET last_accessed = ?,
+                        access_count = access_count + 1
+                    WHERE id = ?
+                """, (datetime.now(), cache_id))
+                conn.commit()
+            
+            return dict(row) if row else None
+    
+    def store_in_cache(self, cache_key: str, model_used: str, 
+                      response_content: str, prompt_template: Optional[str] = None,
+                      content_type: Optional[str] = None) -> int:
+        """
+        Store LLM response in cache
+        
+        Args:
+            cache_key: Unique cache key
+            model_used: Model name that generated the response
+            response_content: The LLM response to cache
+            prompt_template: Optional prompt template used
+            content_type: Optional type of content (lesson, question, etc.)
+            
+        Returns:
+            Cache entry ID
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute("""
+                    INSERT INTO llm_cache 
+                    (cache_key, model_used, prompt_template, response_content, 
+                     content_type, created_at, last_accessed, access_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                """, (cache_key, model_used, prompt_template, response_content,
+                     content_type, datetime.now(), datetime.now()))
+                
+                conn.commit()
+                return cursor.lastrowid
+            
+            except sqlite3.IntegrityError:
+                # Cache key already exists - this shouldn't happen normally
+                # but handle it by returning the existing entry
+                cursor.execute("SELECT id FROM llm_cache WHERE cache_key = ?", (cache_key,))
+                row = cursor.fetchone()
+                return row['id'] if row else -1
+    
+    def get_cache_stats(self) -> Dict:
+        """
+        Get cache statistics
+        
+        Returns:
+            Dictionary with cache stats
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Total entries
+            cursor.execute("SELECT COUNT(*) as total FROM llm_cache")
+            total = cursor.fetchone()['total']
+            
+            # Total accesses
+            cursor.execute("SELECT SUM(access_count) as total_accesses FROM llm_cache")
+            total_accesses = cursor.fetchone()['total_accesses'] or 0
+            
+            # By model
+            cursor.execute("""
+                SELECT model_used, COUNT(*) as count, SUM(access_count) as accesses
+                FROM llm_cache
+                GROUP BY model_used
+            """)
+            by_model = [dict(row) for row in cursor.fetchall()]
+            
+            # By content type
+            cursor.execute("""
+                SELECT content_type, COUNT(*) as count, SUM(access_count) as accesses
+                FROM llm_cache
+                WHERE content_type IS NOT NULL
+                GROUP BY content_type
+            """)
+            by_type = [dict(row) for row in cursor.fetchall()]
+            
+            return {
+                'total_entries': total,
+                'total_accesses': total_accesses,
+                'by_model': by_model,
+                'by_type': by_type,
+                'avg_accesses_per_entry': total_accesses / total if total > 0 else 0
+            }
+    
+    def clear_old_cache(self, days: int = 30) -> int:
+        """
+        Clear cache entries older than specified days that haven't been accessed recently
+        
+        Args:
+            days: Number of days of inactivity before clearing
+            
+        Returns:
+            Number of entries deleted
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                DELETE FROM llm_cache
+                WHERE datetime(last_accessed) < datetime('now', '-' || ? || ' days')
+            """, (days,))
+            
+            deleted = cursor.rowcount
+            conn.commit()
+            return deleted
 
 
 # Singleton instance
