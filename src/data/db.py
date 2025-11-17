@@ -64,7 +64,7 @@ class Database:
                                      exam_target, daily_hours, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, (username, password_hash, name, email, exam_target, 
-                     daily_hours, datetime.now()))
+                     daily_hours, datetime.now().isoformat()))
                 
                 conn.commit()
                 return cursor.lastrowid
@@ -130,7 +130,7 @@ class Database:
                 UPDATE users
                 SET last_login = ?
                 WHERE id = ?
-            """, (datetime.now(), user_id))
+            """, (datetime.now().isoformat(), user_id))
             conn.commit()
     
     def update_user_profile(self, user_id: int, **kwargs):
@@ -316,7 +316,7 @@ class Database:
                     SET last_accessed = ?,
                         access_count = access_count + 1
                     WHERE id = ?
-                """, (datetime.now(), cache_id))
+                """, (datetime.now().isoformat(), cache_id))
                 conn.commit()
             
             return dict(row) if row else None
@@ -347,7 +347,7 @@ class Database:
                      content_type, created_at, last_accessed, access_count)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 1)
                 """, (cache_key, model_used, prompt_template, response_content,
-                     content_type, datetime.now(), datetime.now()))
+                     content_type, datetime.now().isoformat(), datetime.now().isoformat()))
                 
                 conn.commit()
                 return cursor.lastrowid

@@ -234,7 +234,7 @@ IMPORTANT:
                         1 if qr['is_correct'] else 0,
                         1.0 if qr['is_correct'] else 0.0,
                         time_taken_minutes * 60 / result.total_questions,
-                        datetime.now()
+                        datetime.now().isoformat()
                     )
                 )
             
@@ -269,8 +269,8 @@ IMPORTANT:
                             new_correct,
                             new_accuracy,
                             new_mastery,
-                            datetime.now().date(),
-                            datetime.now(),
+                            datetime.now().date().isoformat(),
+                            datetime.now().isoformat(),
                             user_id,
                             topic_id
                         )
@@ -292,12 +292,12 @@ IMPORTANT:
                             user_id,
                             topic_id,
                             mastery,
-                            datetime.now().date(),
+                            datetime.now().date().isoformat(),
                             result.total_questions,
                             result.correct_answers,
                             accuracy,
-                            datetime.now(),
-                            datetime.now().date()
+                            datetime.now().isoformat(),
+                            datetime.now().date().isoformat()
                         )
                     )
             
