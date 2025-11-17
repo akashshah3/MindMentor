@@ -596,26 +596,77 @@ When scaling beyond MVP:
   - Motivational messaging for engagement
   - Visual progress tracking with gamification elements
 
+#### Study Scheduler Engine
+- **Files**: `src/core/scheduler.py`
+- **Status**: ✅ Complete (November 17, 2025)
+- **Features**:
+  - `StudyScheduler` class with SM-2 spaced repetition algorithm
+  - Adaptive schedule generation for 1-30 days
+  - Smart topic selection: Revision (due) → Practice (weak) → Learn (new)
+  - Topic deduplication across week (scheduled_topic_ids tracking)
+  - Quality-based ease factor calculation (0-5 star rating)
+  - Next review date updates using SM-2 intervals
+  - Schedule persistence to database (JSON-serialized items)
+  - Completion tracking with percentage calculation
+  - Statistics aggregation (days scheduled, completion rate, topics done)
+- **Implementation Details**:
+  - `generate_schedule()` - Creates multi-day schedules with topic variety
+  - `_generate_daily_items()` - Fills daily time allocation with prioritized activities
+  - `_get_revision_due_topics()` - SM-2 based revision selection with next_review_date filter
+  - `_get_practice_topics()` - Weak topics (mastery < 60%) sorted by exam weight
+  - `_get_new_topics_to_learn()` - Unstudied topics prioritized by JEE importance
+  - `update_next_review_date()` - SM-2 algorithm: EF calculation, interval computation
+  - `mark_item_completed()` - Removes from schedule, updates completion percentage
+  - `save_schedule()` - Inserts/updates schedules table with JSON items
+  - `get_schedule_stats()` - Aggregates completion metrics across date range
+- **SM-2 Algorithm**:
+  - Default ease factor: 2.5, minimum: 1.3
+  - Intervals: Quality < 3 → 1 day (reset), Rev 1 → 1 day, Rev 2 → 6 days, Rev n → I(n-1) × EF
+  - Quality impact: 5 (perfect) increases EF, 0-2 (poor) resets to 1 day
+- **Activity Durations**: Learn (60min), Revise (30min), Practice (45min)
+- **Database Integration**: Uses `get_connection()` for all DB operations
+- **Topic Exclusion**: Accepts `exclude_topic_ids` set to prevent duplicates across days
+
+#### Study Scheduler UI
+- **Files**: `src/pages/schedule.py`
+- **Status**: ✅ Complete (November 17, 2025)
+- **Features**:
+  - Calendar view with 3 modes: This Week / Next Week / Custom Range
+  - Subject filters: Physics, Chemistry, Mathematics (multi-select)
+  - Tabbed daily interface with formatted dates
+  - Color-coded activity cards by type (Revision/Practice/Learn)
+  - Two-button action system:
+    - Learn: "Start" (navigate to Learn) + "✓ Done" (mark complete)
+    - Practice: "Quiz" (navigate to Quiz) + "✓ Done" (mark complete)
+    - Revision: "✅ Done" popup with 0-5 star quality rating
+  - Statistics dashboard: Days scheduled, completed, avg completion, topics done
+  - Progress indicators: Completion percentage per day with color coding
+  - Notes section: Daily reflection text area with persistence
+  - Direct navigation: Pre-selects topic in Learn/Quiz pages
+- **Implementation Details**:
+  - `show_schedule_page()` - Main entry with authentication check
+  - `show_schedule_stats()` - 4-metric overview display
+  - `show_daily_schedule()` - Single day view with grouped activities
+  - `show_schedule_item()` - Individual activity card with action buttons
+  - Sidebar controls for date range and subject filters
+  - "🔄 Regenerate Schedule" button with loading spinner
+- **User Experience**:
+  - Empty state handling with helpful messages
+  - Dynamic content based on schedule availability
+  - Color-coded borders and difficulty badges
+  - Expandable sections by activity type
+  - Real-time updates on completion
+
 #### Application Routing
 - **Files**: `app.py`
 - **Features**:
   - Main entry point with page routing
-  - Sidebar navigation (Dashboard, Learn, Practice)
+  - Sidebar navigation (Dashboard, Learn, Practice, Schedule)
   - Session state initialization
   - Authentication checks on all routes
-  - Page imports: `show_login_page`, `show_registration_page`, `show_dashboard`, `show_learn_page`, `show_quiz_page`
+  - Page imports: `show_login_page`, `show_registration_page`, `show_dashboard`, `show_learn_page`, `show_quiz_page`, `show_schedule_page`
 
 ### ⏳ Pending Modules
-
-#### Study Scheduler
-- **Planned Files**: `src/core/scheduler.py`, `src/pages/schedule.py`
-- **Features to Add**:
-  - Automated schedule generation based on available time
-  - Spaced repetition using SM-2 algorithm
-  - Topic prioritization (JEE weight × weakness)
-  - Calendar UI with daily tasks
-  - Progress tracking against schedule
-  - Dynamic schedule adjustment based on quiz performance
 
 #### Quiz System Debugging
 - **Planned Work**:
@@ -626,12 +677,13 @@ When scaling beyond MVP:
   - Add "Retry Quiz" functionality
 
 #### Test Suite
-- **Planned Files**: `tests/test_quiz.py`, `tests/test_grading.py`, `tests/test_analytics.py`
+- **Planned Files**: `tests/test_quiz.py`, `tests/test_grading.py`, `tests/test_analytics.py`, `tests/test_scheduler.py`
 - **Features to Add**:
   - Unit tests for quiz generation logic
   - Grading accuracy tests for all question types
   - Integration tests for quiz flow
   - Analytics calculation tests
+  - SM-2 algorithm tests
   - Edge case handling tests
 
 

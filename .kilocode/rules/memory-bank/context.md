@@ -2,7 +2,7 @@
 
 ## Project Status
 
-**Phase**: Core Features Development - Analytics Dashboard Complete  
+**Phase**: Core Features Development - Study Scheduler Complete  
 **Last Updated**: November 17, 2025
 
 ## Current State
@@ -20,8 +20,8 @@
 - ✅ Aggressive caching system for API cost control (80%+ hit rate)
 - ✅ **Teaching/Learning module complete and working**
 - ✅ **Analytics Dashboard complete with comprehensive insights**
+- ✅ **Study Scheduler complete with SM-2 spaced repetition**
 - ⏳ **Quiz system built but needs debugging (JSON parsing, answer collection)**
-- ⏳ Study scheduler not yet built
 
 ## What Exists
 
@@ -118,26 +118,35 @@
    - ✅ Recent Activity - Last 7 days timeline
    - ✅ Gamification elements - Progress bars, metrics, streaks
 
-## What Doesn't Exist Yet
+10. **Study Scheduler** ✅ COMPLETE
+   - ✅ `src/core/scheduler.py` - Scheduler engine (600 lines)
+   - ✅ `src/pages/schedule.py` - Schedule UI (350 lines)
+   - ✅ SM-2 Spaced Repetition Algorithm implementation
+   - ✅ Adaptive schedule generation (revision + practice + new learning)
+   - ✅ Topic deduplication across week (different topics each day)
+   - ✅ Quality rating system (0-5 stars) for revision items
+   - ✅ Manual completion buttons for all activity types
+   - ✅ Calendar view (This Week/Next Week/Custom Range)
+   - ✅ Subject filters (Physics/Chemistry/Math)
+   - ✅ Statistics dashboard (days scheduled, completion rate, topics done)
+   - ✅ Direct navigation to Learn/Quiz pages from schedule
+   - ✅ Database integration with schedules table
+   - ✅ Automatic next_review_date updates using SM-2
 
-- ⏳ **Study Scheduler**
-  - Automated schedule generation with spaced repetition
-  - SM-2 algorithm implementation
-  - Calendar UI for daily/weekly plans
-  - Topic prioritization based on JEE weights
-  - Progress tracking vs schedule
+## What Doesn't Exist Yet
   
 - ⏳ **Test Suite**
   - Unit tests for quiz generation and grading
   - Integration tests for authentication flow
   - End-to-end tests for teaching module
   - LLM caching tests
+  - Scheduler algorithm tests
 
 ## Current Focus
 
-**Analytics Dashboard Complete! Three Core Features Functional**
+**Study Scheduler Complete! Four Core Features Functional**
 
-Teaching Module, Quiz System (needs debugging), and Analytics Dashboard are now operational:
+Teaching Module, Analytics Dashboard, Study Scheduler are fully operational. Quiz System needs debugging:
 
 ### Teaching Module Features (Completed ✅)
 1. ✅ Topic selection UI with 62 JEE topics organized by subject/chapter
@@ -169,6 +178,20 @@ Teaching Module, Quiz System (needs debugging), and Analytics Dashboard are now 
 8. ✅ Recent Activity - Last 7 days timeline from chat_history
 9. ✅ Gamification elements - Progress indicators, metrics, streaks
 
+### Study Scheduler Features (Completed ✅ - November 17, 2025)
+1. ✅ SM-2 Spaced Repetition Algorithm - Optimal review intervals (1d → 6d → exponential)
+2. ✅ Smart Topic Selection - Revision (due), Practice (weak), Learn (new high-priority)
+3. ✅ Week-long Planning - Generates 7-day schedules with topic variety
+4. ✅ Topic Deduplication - Different topics each day (tracks scheduled_topic_ids across week)
+5. ✅ Manual Completion - "✓ Done" buttons for all activity types
+6. ✅ Quality Rating System - 0-5 star rating for revision items updates SM-2 intervals
+7. ✅ Calendar Views - This Week/Next Week/Custom Range with tabbed daily displays
+8. ✅ Subject Filters - Focus on Physics/Chemistry/Mathematics individually or combined
+9. ✅ Statistics Dashboard - Days scheduled, completion rate, topics done vs scheduled
+10. ✅ Direct Navigation - "Start" → Learn page, "Quiz" → Practice page with topic pre-selected
+11. ✅ Activity Duration Tracking - Learn (60min), Revise (30min), Practice (45min)
+12. ✅ Progress Visualization - Completion percentage per day, color-coded status indicators
+
 ### Recent Implementation Details (November 17, 2025)
 - **Analytics Engine** (`src/core/analytics.py` - 290 lines): 
   - Comprehensive statistical methods for learning insights
@@ -184,6 +207,21 @@ Teaching Module, Quiz System (needs debugging), and Analytics Dashboard are now 
   - "Start Learning" buttons in recommendations
   - Color-coded progress bars and metrics
 
+- **Study Scheduler** (`src/core/scheduler.py` - 600 lines):
+  - StudyScheduler class with SM-2 algorithm implementation
+  - Topic selection methods with exclusion filters for variety
+  - Schedule generation with tracked scheduled_topic_ids
+  - Database operations using get_connection() context manager
+  - Quality-based ease factor calculation for optimal intervals
+  
+- **Schedule UI** (`src/pages/schedule.py` - 350 lines):
+  - Calendar view with flexible date ranges
+  - Tabbed daily interface with color-coded activity cards
+  - Two-button action system (Start/Quiz + Done)
+  - Quality rating popup for revision items
+  - Statistics overview with 4-metric display
+  - Notes section for daily reflections
+
 - **Quiz System Attempts**:
   - Fixed database schema mismatches (topics vs topic_ids, quiz_questions vs questions)
   - Updated LLM prompt to avoid LaTeX notation (use x^2 instead of $x^2$)
@@ -193,23 +231,16 @@ Teaching Module, Quiz System (needs debugging), and Analytics Dashboard are now 
 
 ## Next Immediate Steps
 
-**Option A: Debug Quiz System** (Complete Existing Feature)
+**Priority: Debug Quiz System** (Complete Existing Feature)
 1. Fix JSON parsing with LaTeX expressions in LLM responses
 2. Verify and fix widget answer collection in quiz.py
 3. Test complete flow: generate → take → grade → results
 4. Add question review feature after grading
 5. Write tests for quiz generation and grading
 
-**Option B: Build Study Scheduler** (Recommended - New High-Value Feature)
-1. Create `src/core/scheduler.py` - Schedule generator with SM-2 algorithm
-2. Create `src/pages/schedule.py` - Calendar UI with daily/weekly views
-3. Implement spaced repetition for optimal learning
-4. Topic prioritization based on JEE exam weights
-5. Adaptive scheduling based on quiz performance and mastery scores
-
-**Option C: Add Question Review** (UX Enhancement)
-1. Create detailed question review after quiz completion
-2. Show correct answers with explanations
+**Future Enhancements:**
+- Add question review after quiz completion with explanations
+- Build test suite for all modules
 3. Link to relevant learning modules
 4. Track which questions were wrong for future practice
 5. Add "Retry Quiz" functionality
