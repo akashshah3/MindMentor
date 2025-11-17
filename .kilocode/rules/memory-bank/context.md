@@ -2,8 +2,8 @@
 
 ## Project Status
 
-**Phase**: Core Features Development - Quiz System Complete  
-**Last Updated**: November 2025
+**Phase**: Core Features Development - Analytics Dashboard Complete  
+**Last Updated**: November 17, 2025
 
 ## Current State
 
@@ -19,10 +19,9 @@
 - ✅ Complete LLM integration with Gemini API
 - ✅ Aggressive caching system for API cost control (80%+ hit rate)
 - ✅ **Teaching/Learning module complete and working**
-- ✅ **Quiz generation and grading system complete**
-- ✅ **Quiz interface implemented with timer and results**
+- ✅ **Analytics Dashboard complete with comprehensive insights**
+- ⏳ **Quiz system built but needs debugging (JSON parsing, answer collection)**
 - ⏳ Study scheduler not yet built
-- ⏳ Enhanced analytics dashboard not yet built
 
 ## What Exists
 
@@ -88,99 +87,143 @@
    - ✅ Session state management
    - ✅ Back navigation and auto-save
 
-8. **Quiz System** ✅ COMPLETE
-   - ✅ `src/core/quiz_generator.py` - Quiz generation engine (320 lines)
-   - ✅ `src/core/grading.py` - Grading engine (340 lines)
-   - ✅ `src/pages/quiz.py` - Interactive quiz interface (380 lines)
+8. **Quiz System** ⏳ NEEDS DEBUGGING
+   - ✅ `src/core/quiz_generator.py` - Quiz generation engine (310 lines)
+   - ✅ `src/core/grading.py` - Grading engine (370 lines)
+   - ✅ `src/pages/quiz.py` - Interactive quiz interface (440 lines)
+   - ✅ `src/data/migrate_quiz_schema.py` - Database migration script
    - ✅ Adaptive difficulty based on student mastery
    - ✅ Three question types: MCQ, Numeric, Descriptive
    - ✅ Topic selection with multi-select
    - ✅ Question count and difficulty configuration
    - ✅ Real-time timer countdown
-   - ✅ Question-by-question answer collection
-   - ✅ Rule-based grading (MCQ exact match, Numeric with tolerance)
-   - ✅ LLM-based grading for descriptive (Gemini Pro, temp=0.3)
-   - ✅ Results display with score breakdown
-   - ✅ Detailed feedback per question
-   - ✅ Quiz persistence in database (quizzes, questions, quiz_attempts)
-   - ✅ Navigation from results to Learn/Dashboard
+   - ✅ Fresh questions option (bypass cache)
+   - ⚠️ **Known Issues:**
+     - JSON parsing errors with LaTeX in LLM responses
+     - Answer collection from Streamlit widgets needs verification
+     - End-to-end flow needs thorough testing
+   - ✅ Database tables: quiz_attempts, quiz_questions (added via migration)
+   - ✅ Rule-based grading for MCQ and Numeric
+   - ✅ LLM-based grading for Descriptive (Gemini Pro, temp=0.3)
+
+9. **Analytics Dashboard** ✅ COMPLETE
+   - ✅ `src/core/analytics.py` - Analytics engine (290 lines)
+   - ✅ `src/pages/dashboard.py` - Enhanced dashboard (230 lines)
+   - ✅ Learning Overview - Topics started, mastery, practice stats
+   - ✅ Study Streak - Current and longest streaks with motivation
+   - ✅ Subject Breakdown - Performance by Physics/Chemistry/Math
+   - ✅ Mastery Distribution - Visual breakdown by skill level
+   - ✅ Weak & Strong Topics - Identify areas needing work
+   - ✅ Smart Recommendations - AI-powered study suggestions
+   - ✅ Recent Activity - Last 7 days timeline
+   - ✅ Gamification elements - Progress bars, metrics, streaks
 
 ## What Doesn't Exist Yet
 
-- ⏳ **Enhanced Analytics Dashboard**
-  - Quiz performance graphs and trends
-  - Topic mastery heatmaps
-  - Study time tracking
-  - Weak area identification
-  - Comparative analysis with peers
-  
 - ⏳ **Study Scheduler**
-  - Automated schedule generation
-  - Spaced repetition algorithm
-- ⏳ Analytics dashboard with performance insights
-- ⏳ Weak area identification and recommendations
-- ⏳ Test suite for core business logic
-- Development environment configuration
-- Dependencies installation
-- Database setup
-- LLM integration
-- Streamlit application
-- Test infrastructure
+  - Automated schedule generation with spaced repetition
+  - SM-2 algorithm implementation
+  - Calendar UI for daily/weekly plans
+  - Topic prioritization based on JEE weights
+  - Progress tracking vs schedule
+  
+- ⏳ **Test Suite**
+  - Unit tests for quiz generation and grading
+  - Integration tests for authentication flow
+  - End-to-end tests for teaching module
+  - LLM caching tests
 
 ## Current Focus
 
-**Quiz System Complete! Two Core Features Functional**
+**Analytics Dashboard Complete! Three Core Features Functional**
 
-Both the Teaching Module and Quiz System are fully operational:
+Teaching Module, Quiz System (needs debugging), and Analytics Dashboard are now operational:
 
-### Teaching Module Features (Completed)
+### Teaching Module Features (Completed ✅)
 1. ✅ Topic selection UI with 62 JEE topics organized by subject/chapter
 2. ✅ AI-generated lessons with structured content (explanations, examples, formulas, tips)
 3. ✅ Interactive chat interface with context-aware responses
 4. ✅ Progress tracking in student_profiles table
 5. ✅ Topic completion marking with mastery scores
 
-### Quiz System Features (Completed)
+### Quiz System Features (Built ⏳ - Needs Debugging)
 1. ✅ Quiz generation engine with adaptive difficulty
 2. ✅ Three question types: MCQ, Numeric, Descriptive
 3. ✅ Topic selection with multi-select capability
 4. ✅ Real-time timer countdown interface
-5. ✅ Rule-based grading (MCQ exact match, Numeric with tolerance)
-6. ✅ LLM-based grading for descriptive questions (Gemini Pro)
-7. ✅ Results display with detailed feedback
-8. ✅ Quiz persistence in database
+5. ⚠️ Fresh questions option (force_refresh parameter added)
+6. ⚠️ JSON parsing needs improvement (LLM responses with LaTeX cause errors)
+7. ⚠️ Answer collection from Streamlit widgets needs verification
+8. ✅ Rule-based grading (MCQ exact match, Numeric with tolerance)
+9. ✅ LLM-based grading for descriptive questions (Gemini Pro)
+10. ✅ Database migration for quiz_attempts and quiz_questions tables
 
-### Recent Implementation Details
-- **Quiz Generator**: Generates mixed question types, calculates adaptive difficulty based on student mastery_score
-- **Grading Engine**: Uses rule-based for MCQ/Numeric (no API cost), LLM only for descriptive answers
-- **Quiz Interface**: Three modes (select, taking, results) with session state management
-- **Time Limits**: 2min/MCQ, 3min/Numeric, 5min/Descriptive
-- **Partial Credit**: Numeric answers get 50% if within 0.5% tolerance
+### Analytics Dashboard Features (Completed ✅ - November 17, 2025)
+1. ✅ Learning Overview - Topics started, mastered, average mastery, accuracy
+2. ✅ Study Streak - Current and longest streaks with motivational messages
+3. ✅ Subject Breakdown - Physics/Chemistry/Math performance with progress bars
+4. ✅ Mastery Distribution - Visual breakdown by skill level (4 tiers)
+5. ✅ Weak Topics - Identifies topics with mastery < 0.5, sorted by score
+6. ✅ Strong Topics - Identifies mastered topics (mastery > 0.7)
+7. ✅ Smart Recommendations - Combines weak topics + unstudied high-priority topics, sorted by JEE exam_weight
+8. ✅ Recent Activity - Last 7 days timeline from chat_history
+9. ✅ Gamification elements - Progress indicators, metrics, streaks
+
+### Recent Implementation Details (November 17, 2025)
+- **Analytics Engine** (`src/core/analytics.py` - 290 lines): 
+  - Comprehensive statistical methods for learning insights
+  - Study streak calculation from chat_history timestamps
+  - Subject aggregation by Physics/Chemistry/Mathematics
+  - Mastery distribution grouping (0-30%, 30-60%, 60-80%, 80-100%)
+  - Topic recommendations combining weakness + JEE importance
+  
+- **Dashboard Enhancement** (`src/pages/dashboard.py` - 230 lines):
+  - Complete rewrite with 7 major visualization sections
+  - Dynamic content based on data availability
+  - Empty state handling with helpful messages
+  - "Start Learning" buttons in recommendations
+  - Color-coded progress bars and metrics
+
+- **Quiz System Attempts**:
+  - Fixed database schema mismatches (topics vs topic_ids, quiz_questions vs questions)
+  - Updated LLM prompt to avoid LaTeX notation (use x^2 instead of $x^2$)
+  - Added JSON parsing fallback to prevent crashes
+  - Modified widget answer collection in quiz.py
+  - **Status**: Built but needs thorough debugging - JSON parsing and widget state issues remain
 
 ## Next Immediate Steps
 
-**Option A: Build Enhanced Analytics Dashboard** (Recommended - Show Student Progress)
-1. Update `src/pages/dashboard.py` with quiz performance metrics
-2. Create visualizations for topic mastery and quiz scores
-3. Show study time tracking
-4. Identify weak areas automatically
-5. Display recent activity timeline
+**Option A: Debug Quiz System** (Complete Existing Feature)
+1. Fix JSON parsing with LaTeX expressions in LLM responses
+2. Verify and fix widget answer collection in quiz.py
+3. Test complete flow: generate → take → grade → results
+4. Add question review feature after grading
+5. Write tests for quiz generation and grading
 
-**Option B: Build Study Scheduler** (Smart Study Planning)
-1. Create `src/core/scheduler.py` - Schedule generator
-2. Create `src/pages/schedule.py` - Calendar UI
-3. Implement spaced repetition (SM-2 algorithm)
-4. Balance new topics vs revision
-5. Adaptive scheduling based on quiz performance
+**Option B: Build Study Scheduler** (Recommended - New High-Value Feature)
+1. Create `src/core/scheduler.py` - Schedule generator with SM-2 algorithm
+2. Create `src/pages/schedule.py` - Calendar UI with daily/weekly views
+3. Implement spaced repetition for optimal learning
+4. Topic prioritization based on JEE exam weights
+5. Adaptive scheduling based on quiz performance and mastery scores
 
-**Option C: Refine & Test Existing Features** (Consolidation)
-1. Test quiz generation and grading thoroughly
-2. Add more question templates in prompts
-3. Improve error handling and edge cases
-4. Add loading states and better UX
-5. Write unit tests for quiz and grading logic
+**Option C: Add Question Review** (UX Enhancement)
+1. Create detailed question review after quiz completion
+2. Show correct answers with explanations
+3. Link to relevant learning modules
+4. Track which questions were wrong for future practice
+5. Add "Retry Quiz" functionality
 
 ## Recent Decisions
+
+**Analytics Dashboard Design** (November 17, 2025):
+- Created comprehensive analytics engine with 8+ statistical methods
+- Implemented study streak calculation from chat_history timestamps
+- Subject breakdown aggregates by Physics/Chemistry/Mathematics
+- Mastery distribution uses 4-tier grouping (Beginner/Intermediate/Advanced/Mastered)
+- Recommendations combine weak topics (mastery < 0.5) with unstudied high-priority topics
+- Dashboard uses empty state handling for new users with no data
+- Color-coded progress bars (red: 0-30%, orange: 30-60%, yellow: 60-80%, green: 80-100%)
 
 **Quiz System Design** (November 2025):
 - Rule-based grading for MCQ/Numeric to minimize API costs
@@ -188,12 +231,15 @@ Both the Teaching Module and Quiz System are fully operational:
 - Adaptive difficulty uses student_profiles.mastery_score and quiz_attempts.score
 - Questions stored with JSON serialization for options/correct_answer
 - Timer implemented client-side with remaining time display
+- Force_refresh parameter added to bypass caching for fresh questions
+- **Known Issues**: JSON parsing with LaTeX, widget answer collection needs verification
 
 **LLM Integration Decisions** (November 2025):
 - Used Gemini 2.5 models (Pro/Flash/Flash Lite) for cost efficiency
 - Implemented aggressive caching to achieve 80% hit rate
 - Set token limits: 8192 for lessons, 4096 for other tasks
 - JSON parsing handles markdown code blocks from LLM responses
+- Added fallback for JSON parsing errors to prevent crashes
 - Retry logic with exponential backoff (3 attempts)
 
 **Teaching Module Approach** (November 2025):

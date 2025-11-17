@@ -448,7 +448,8 @@ When scaling beyond MVP:
   - Uses `generate_lesson()` for initial content with caching
 
 #### Quiz Generation System
-- **Files**: `src/core/quiz_generator.py`
+- **Files**: `src/core/quiz_generator.py`, `src/data/migrate_quiz_schema.py`
+- **Status**: ✅ Built, ⏳ Needs Debugging
 - **Features**:
   - `QuizGenerator` class with adaptive quiz generation
   - Three question types: MCQ, Numeric, Descriptive
@@ -458,17 +459,24 @@ When scaling beyond MVP:
   - Time limit calculation (2min/MCQ, 3min/Numeric, 5min/Descriptive)
   - LLM-based question generation using Gemini Flash (temperature=0.8 for variety)
   - Question caching via `TaskType.QUESTION_GENERATION`
-  - Database persistence to `quizzes` and `questions` tables
+  - Database persistence to `quiz_attempts` and `quiz_questions` tables (added via migration)
   - JSON serialization for options and correct answers
+  - **Force refresh** parameter to bypass cache and generate fresh questions
 - **Implementation Details**:
   - `generate_quiz()` - Main quiz generation method
   - `_generate_questions_by_type()` - Type-specific generation with LLM
   - `get_adaptive_difficulty()` - Determines Easy/Medium/Hard based on performance
   - `save_quiz()` - Persists quiz and questions with proper JSON handling
   - `_calculate_time_limit()` - Allocates time per question type
+- **Known Issues**:
+  - JSON parsing fails when LLM returns LaTeX expressions with unescaped backslashes
+  - Database schema migration added `quiz_attempts` and `quiz_questions` tables
+  - Prompt updated to avoid LaTeX notation, use simple text (x^2 instead of $x^2$)
+  - JSON parsing fallback added to prevent crashes
 
 #### Grading System
 - **Files**: `src/core/grading.py`
+- **Status**: ✅ Built, ⏳ Needs Verification
 - **Features**:
   - `GradingEngine` class with multi-strategy grading
   - Rule-based grading for MCQ (exact string matching) - no API cost
@@ -478,7 +486,7 @@ When scaling beyond MVP:
   - Partial credit support (50% for numeric answers within 0.5% tolerance)
   - Quiz-level grading with score aggregation
   - Detailed feedback generation per question
-  - Database persistence to `quiz_attempts` table
+  - Database persistence to `quiz_attempts` and `attempts` tables
 - **Implementation Details**:
   - `grade_answer()` - Routes to appropriate grading method
   - `_grade_mcq()` - Case-insensitive exact matching
@@ -486,20 +494,25 @@ When scaling beyond MVP:
   - `_grade_descriptive()` - LLM-based with structured feedback (score, strengths, improvements)
   - `_grade_descriptive_fallback()` - Keyword-based backup grading
   - `grade_quiz()` - Grades entire quiz and calculates percentage
-  - `_save_quiz_attempt()` - Persists results with timestamp
+  - `_save_quiz_attempt()` - Persists results with student_answer and topic_id
+- **Known Issues**:
+  - Updated to save to correct tables (quiz_attempts, not quiz_attempts only)
+  - Added student_answer and topic_id to results for better tracking
 
 #### Quiz Interface
 - **Files**: `src/pages/quiz.py`
+- **Status**: ✅ Built, ⏳ Needs Debugging
 - **Features**:
   - Three-mode interface: select, taking, results
   - Topic selection with multi-checkbox UI organized by subject
   - Quiz configuration: question count slider, difficulty selector, question type toggles
+  - **Fresh questions option** with checkbox to force new generation (bypasses cache)
   - Real-time timer countdown display
   - Question-by-question rendering with appropriate input types:
     - Radio buttons for MCQ with formatted options
     - Number input for Numeric questions
     - Text area for Descriptive questions
-  - Answer collection in session state
+  - Answer collection in session state via widget keys
   - Submit validation (warn on unanswered questions)
   - Results display with:
     - Overall score metrics (total, percentage, correct count, time)
@@ -512,9 +525,76 @@ When scaling beyond MVP:
   - `quiz_mode` - Tracks current interface mode
   - `current_quiz` - Stores active quiz data
   - `quiz_start_time` - Timer reference
-  - `student_answers` - Collects user responses
+  - `student_answers` - Collects user responses from widget state
   - `quiz_results` - Stores grading output
 - **Integration**: Uses `QuizGenerator` and `GradingEngine` classes
+- **Known Issues**:
+  - Widget answer collection modified to read from `st.session_state[widget_key]`
+  - Needs verification that answers are properly captured before grading
+
+#### Analytics Engine
+- **Files**: `src/core/analytics.py`
+- **Status**: ✅ Complete (November 17, 2025)
+- **Features**:
+  - `AnalyticsEngine` class with comprehensive statistical methods
+  - Learning overview metrics: topics started, mastered, average mastery, accuracy
+  - Study streak calculation from `chat_history` timestamps (current and longest)
+  - Subject breakdown: Aggregates performance by Physics/Chemistry/Mathematics
+  - Mastery distribution: Groups topics into 4 skill levels (0-30%, 30-60%, 60-80%, 80-100%)
+  - Weak topics identification: Topics with mastery < 0.5, sorted by score
+  - Strong topics identification: Topics with mastery > 0.7, sorted by score
+  - Smart recommendations: Combines weak topics + unstudied high-priority topics, sorted by JEE exam_weight
+  - Recent activity timeline: Last 7 days of learning sessions from chat_history
+  - Gamification metrics: Progress bars, achievement indicators
+- **Implementation Details**:
+  - `get_learning_overview()` - Calculates 4 key metrics (topics started, mastered, avg mastery, accuracy)
+  - `get_subject_breakdown()` - Groups by subject, calculates averages and topic counts
+  - `get_study_streak()` - Analyzes chat_history dates for consecutive study days
+  - `get_weak_topics()` / `get_strong_topics()` - Filters and sorts by mastery thresholds
+  - `get_mastery_distribution()` - Creates 4-tier grouping with topic lists per tier
+  - `get_topic_recommendations()` - Prioritizes weak + unstudied topics by exam weight (top 5)
+  - `get_recent_activity()` - Queries last 7 days of chat_history with counts
+- **Database Integration**: Queries `student_profiles`, `jee_topics`, `chat_history` tables
+- **Performance**: Efficient queries with proper indexing, minimal API calls (pure SQL)
+
+#### Enhanced Analytics Dashboard
+- **Files**: `src/pages/dashboard.py`
+- **Status**: ✅ Complete (November 17, 2025)
+- **Features**:
+  - Complete rewrite with 7 major visualization sections
+  - **Overview Metrics**: 4-column layout showing topics started, mastered, practice count, accuracy
+  - **Study Streak**: Current streak, best streak, motivational messages based on performance
+  - **Subject Breakdown**: 3-column grid for Physics/Chemistry/Math with:
+    - Average mastery per subject with progress bars
+    - Color-coded by performance (red: 0-30%, orange: 30-60%, yellow: 60-80%, green: 80-100%)
+    - Topic count per subject
+  - **Mastery Distribution**: 2-column layout with skill level cards:
+    - Beginner (0-30%), Intermediate (30-60%), Advanced (60-80%), Mastered (80-100%)
+    - Topic count and topic names per tier
+  - **Weak & Strong Topics**: 2-column layout with expandable cards:
+    - Weak topics (mastery < 0.5) with detailed stats
+    - Strong topics (mastery > 0.7) with detailed stats
+    - Mastery score, accuracy, practice count per topic
+  - **Smart Recommendations**: Top 5 topics to study next
+    - Combines weak topics + unstudied high-priority topics
+    - Sorted by JEE exam weight for prioritization
+    - "Start Learning" buttons with direct navigation
+  - **Recent Activity**: Last 7 days timeline
+    - Date, topic studied, session count
+    - Visual activity log
+  - **Empty State Handling**: Friendly messages when no data available
+  - **Dynamic Content**: All sections adapt based on data availability
+- **Implementation Details**:
+  - Integrates `AnalyticsEngine` for all metrics
+  - Uses Streamlit columns, metrics, progress bars, expanders
+  - Color-coded progress indicators (st.progress with custom colors)
+  - Direct navigation via st.session_state updates for "Start Learning" buttons
+  - Efficient rendering with minimal re-queries
+- **User Experience**:
+  - Clean, modern UI with clear information hierarchy
+  - Actionable insights with direct navigation
+  - Motivational messaging for engagement
+  - Visual progress tracking with gamification elements
 
 #### Application Routing
 - **Files**: `app.py`
@@ -527,16 +607,6 @@ When scaling beyond MVP:
 
 ### ⏳ Pending Modules
 
-#### Enhanced Analytics Dashboard
-- **Planned File**: `src/pages/dashboard.py` (update existing)
-- **Features to Add**:
-  - Quiz performance graphs (score trends over time)
-  - Topic mastery heatmap visualization
-  - Study time tracking per topic
-  - Weak area identification and recommendations
-  - Recent activity timeline
-  - Comparative performance metrics
-
 #### Study Scheduler
 - **Planned Files**: `src/core/scheduler.py`, `src/pages/schedule.py`
 - **Features to Add**:
@@ -547,11 +617,21 @@ When scaling beyond MVP:
   - Progress tracking against schedule
   - Dynamic schedule adjustment based on quiz performance
 
+#### Quiz System Debugging
+- **Planned Work**:
+  - Fix JSON parsing with LaTeX expressions
+  - Verify widget answer collection works correctly
+  - Test complete flow: generate → take → grade → results
+  - Add question review feature after grading
+  - Add "Retry Quiz" functionality
+
 #### Test Suite
-- **Planned Files**: `tests/test_quiz.py`, `tests/test_grading.py`
+- **Planned Files**: `tests/test_quiz.py`, `tests/test_grading.py`, `tests/test_analytics.py`
 - **Features to Add**:
   - Unit tests for quiz generation logic
   - Grading accuracy tests for all question types
   - Integration tests for quiz flow
+  - Analytics calculation tests
   - Edge case handling tests
+
 
